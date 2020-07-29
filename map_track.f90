@@ -14,15 +14,13 @@ module map_track
     end select
     h        = m_th_h*(pi/180.0) !刻み幅の設定値[deg.]から[rad.]への変換
     pth      = (m_T**2.0 + 2.0*m_T*m_m0)**0.5 !初期運動量の計算
-    !particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz ,0.0d0 ,pth ,0.0d0 ,0.0d0 ,0.0d0 ,0.0d0/) !初期入射条件の計算
 
-    !m=3,alpha=1.71で34[keV]の入射条件
-    particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz,&
-                 0.41169659d-3, 0.18948288d0, -0.21241829d-4,0.0d0 ,0.0d0 ,0.0d0/)
-
-    !m=4で40[keV]の入射条件
-    !particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz,&
-    !            -0.23343387d-3,0.18948317d0,-0.58012707d-4,0.0d0 ,0.0d0 ,0.0d0/)
+    select case (select_initial)
+    case(0)
+      particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz ,0.0d0 ,pth ,0.0d0 ,0.0d0 ,0.0d0 ,0.0d0/) !初期入射条件の計算
+    case(1)
+      particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz ,m_pr0 ,m_pth0 ,m_py0 ,0.0d0 ,0.0d0 ,0.0d0/) !初期入射条件の計算
+    end select
 
     !ファイルの読み込み
     open(18,file=trim(path_name)//trim(file_name1)//trim(file_name2)//'.table', status='old')           !ファイルを開く
@@ -703,11 +701,13 @@ module map_track
 
   !=====================================================[サブルーチン⑤:角度も考慮した閉軌道導出(垂直用)]=====================================================
   subroutine closed_orbit_V4(r_num , th_num , z_num)
-  character(100)   :: read_file_name, temp_name
+  character(100)   :: read_file_name, name1, name2
   integer          :: r_num   , th_num  , z_num     !各データ数用入れ子
   integer          :: i_num   , d_num               !各データ数用入れ子
+  integer          :: dr_num  , dy_num              !入射位置のずれ
   double precision :: temp_r  , temp_z  ,temp_T     !rの情報の入れ物
   double precision :: temp_Pr , temp_Pz , temp_Pth  !zの情報の入れ物
+  double precision :: p3,p4,p5,p6,p7  !各成分保存用
 
   open(40,file=trim(path_name2)//trim(file_name3)//'.txt', status='old')           !ファイルを開く
   read (40,*) read_file_name
@@ -715,15 +715,22 @@ module map_track
   read (40,*) d_num
   do i_num = 1,d_num
     particle = (/m_t0 ,m_th0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0/)
-    read (40,*) temp_T,particle(3), particle(4), particle(5), particle(6), particle(7)
-    m_z0 = particle(4)
-    pth  = (particle(5)**2.0 + particle(6)**2.0 + particle(7)**2.0)**0.5
-    particle(3) = particle(3) + dr
-    particle(4) = particle(4) + dz
-    write (temp_name,'(f0.1)') temp_T
-    save_name = trim(read_file_name)//'_T='//trim(temp_name)//'.csv'
-    print *, nint(temp_T),save_name
-    call map_tracking(r_num , th_num , z_num)
+    read (40,*) temp_T,p3, p4, p5, p6, p7
+    do dr_num = 1, 1
+      do dy_num = 0, 0
+        particle = (/m_t0 ,m_th0, p3, p4, p5, p6, p7, 0.0d0, 0.0d0, 0.0d0/)
+        m_z0 = p4
+        m_T  = temp_T*1.0d-3
+        pth  = (p5**2.0 + p6**2.0 + p7**2.0)**0.5
+        particle(3) = particle(3) + (dr_num * 4.0d-3) !r0
+        particle(4) = particle(4) + (dy_num * 15.0d-3)!z0
+        write (name1,'(f0.1)') temp_T
+        write (name2,'(f0.3)') (dr_num * 4.0d-3)
+        save_name = 'T='//trim(name1)//'_dr='//trim(name2)//'.csv'
+        print *, nint(temp_T),save_name
+        call map_tracking(r_num , th_num , z_num)
+      end do
+    end do
   end do
   close(40)
   end subroutine

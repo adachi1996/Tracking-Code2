@@ -14,9 +14,15 @@ module map_track
     end select
     h        = m_th_h*(pi/180.0) !刻み幅の設定値[deg.]から[rad.]への変換
     pth      = (m_T**2.0 + 2.0*m_T*m_m0)**0.5 !初期運動量の計算
-    particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz ,0.0d0 ,pth ,0.0d0 ,0.0d0 ,0.0d0 ,0.0d0/) !初期入射条件の計算
+    !particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz ,0.0d0 ,pth ,0.0d0 ,0.0d0 ,0.0d0 ,0.0d0/) !初期入射条件の計算
+
+    !m=3,alpha=1.71で34[keV]の入射条件
+    particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz,&
+                 0.41169659d-3, 0.18948288d0, -0.21241829d-4,0.0d0 ,0.0d0 ,0.0d0/)
+
+    !m=4で40[keV]の入射条件
     !particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz,&
-    !             -0.000040932662490143934d0,0.20610407862073235d0,0.000023481998702962754d0,0.0d0 ,0.0d0 ,0.0d0/)
+    !            -0.23343387d-3,0.18948317d0,-0.58012707d-4,0.0d0 ,0.0d0 ,0.0d0/)
 
     !ファイルの読み込み
     open(18,file=trim(path_name)//trim(file_name1)//trim(file_name2)//'.table', status='old')           !ファイルを開く
@@ -142,12 +148,15 @@ module map_track
   !=====================================================[サブルーチン②:ルンゲクッタ呼び出し＆保存]=====================================================
   subroutine map_tracking(r_num , th_num , z_num)
     double precision :: temp_dth , temp_th , temp_deg , d_pth , d_T
+    double precision :: deruta_P , deruta_Pr, deruta_Pth , RF_T, RF_P, RF_th!加速関係
     integer          :: r_num , th_num , z_num
     integer          :: count_cell , count_dth
     integer(8)       :: count_th
     open(17,file=save_name, status='replace')                                                  !ファイル作成
     write (17,*) 't[s]',',','th[deg]',',','r[m]',',','z[m]',',',' &
                  Pr[MeV/c]',',','Pth[MeV/c]',',','Pz[MeV/c]',',','Br[T]',',','Bth[T]',',','Bz[T]'   !保存データの名前書き込み
+
+    RF_T = m_T
 
     temp_dth  = nint(m_dth/m_th_h)                                                                      !保存する角度の整数化
     temp_th   = 0                                                                                   !初期化
@@ -162,7 +171,7 @@ module map_track
       temp_deg = nint(particle(2)/m_th_h)                                                             !角度の整数化
       !print *, particle(2),',',particle(3),',',particle(4)
       !if (nint(mod(temp_deg , temp_dth)) == 0) then                                                 !任意の角度の整数倍の時にtrue
-      if (mod(count_th,count_dth) == 0) then
+      if (mod(count_th,count_dth) == 0.0) then!  5.625/m_th_h) then
         write (17,'(e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8)')&
                      particle(1),',',particle(2),',',particle(3),',', &
                      particle(4),',',particle(5),',',particle(6),',', &
@@ -178,6 +187,30 @@ module map_track
       end if
       !theta = mod(temp_deg,sym_th/m_th_h)*m_th_h                                                          !1Cell内での角度の更新
       theta = (mod(count_th,count_cell))*m_th_h
+
+      !加速関連
+      if (mod(count_th,nint(360/m_th_h))*m_th_h == th_RF) then
+        print '(a,e16.8,e16.8,e16.8,e16.8)','P(n)   -> ',particle(5),particle(6),particle(7),&
+                                                        (particle(5)**2.0 + particle(6)**2.0 + particle(7)**2.0)**0.5
+        print '(a,e16.4)','T(n)   -> ',RF_T
+
+        RF_P = (RF_T**2.0 + 2.0*RF_T*m_m0  -  particle(7)**2.0)**0.5 !加速前の平面上の運動量(スカラ)
+        RF_th = ATAN(particle(6)/(-particle(5))) !RF_Pの角度
+        print '(a,e16.4)','th_1   ->',ATAN(particle(6)/(-particle(5)))*180/pi
+        RF_T =  RF_T + RF_kV*1d-3
+        pth  = (RF_T**2.0 + 2.0*RF_T*m_m0  -  particle(7)**2.0)**0.5 !加速後の平面上の運動量(スカラ)
+        deruta_Pr   = -(pth - RF_P)*cos(RF_th)
+        deruta_Pth  =  (pth - RF_P)*sin(RF_th)
+        particle(5) = -RF_P*cos(RF_th) + deruta_Pr
+        particle(6) =  RF_P*sin(RF_th) + deruta_Pth
+        print '(a,e16.4)','th_2   ->',ATAN(particle(6)/(-particle(5)))*180/pi
+
+        print '(a,e16.8,e16.8,e16.8,e16.8)','P(n+1) -> ',particle(5),particle(6),particle(7),&
+                                                        (particle(5)**2.0 + particle(6)**2.0 + particle(7)**2.0)**0.5
+        print '(a,e16.4)','T(n+1) -> ', -m_m0+(m_m0**2.0+particle(5)**2.0 + particle(6)**2.0 + particle(7)**2.0)**0.5
+        print *,'------------------------------------------------------'
+      end if
+
       call map_cal(r_num , th_num , z_num)                                                          !RKを呼ぶための外部サブルーチンを呼ぶ
       particle(2) = particle(2) + m_th_h                                                              !角度の更新
       count_th = count_th + 1
@@ -202,6 +235,10 @@ module map_track
       P      = (particle(5)**2.0+particle(6)**2.0+particle(7)**2.0)**0.5                            !運動量(Ps的な感じ)
       r_beta =    P/(m_m0**2.0+P**2.0)**0.5                                                          !非速度
       gamma  = 1.0/(1.0-r_beta**2.0)**0.5                                                           !ローレンツ因子
+
+      if (P > Pth*1.1 .or. P < Pth*0.9) then
+        check = 1
+      end if
 
       call map_B(r_num , th_num , z_num) !磁場読み込み
       particle = (/ks(1),particle(2),ks(2),ks(3),ks(4),ks(5),ks(6),particle(8),particle(9),particle(10)/)
@@ -540,8 +577,8 @@ module map_track
     temp_box   = 1.0d0
     save_count = 1
     count_dth  = nint(360.0/m_th_h) !保存する角度(360度で固定)
-    do val_T = 1 , 25
-      T_keV = dble(val_T)*2.0+20.0
+    do val_T = 0 , 10
+      T_keV = dble(val_T)*0.1+34.0
       !print *, 'T =',nint(T_keV) ,' [keV]'
       pth = ((0.001*T_keV)**2.0 + 2.0*(0.001*T_keV)*m_m0)**0.5
       CO_z1 = 0
@@ -549,8 +586,8 @@ module map_track
       do CO_z3 = 1 , 20
         closed_z(CO_z3) = 0.0
       end do
-    do i = 0 , 240      !zのループ
-    do i_r = -6 , 6      !rのループ
+    do i = 130 , 150      !zのループ
+    do i_r = -0 , 0      !rのループ
       max_r = 0.0
       max_z = 0.0
       temp_pr2  = 0.0d0 !prの初期化
@@ -563,7 +600,7 @@ module map_track
       !end if
       do k = 0 , set_num            !入射条件の更新回数
         if (k >= set_num) then
-          write (num_name, '("alpha=175_B0=130_m=3_", i3.3, "_")') save_count
+          write (num_name, '("20200618_accelerator_1_", i3.3, "_")') save_count
           write (add_name, '("T=", i3.3, ".csv")') nint(T_keV)
           save_count = save_count + 1
           open(20,file=trim(num_name)//trim(add_name), status='replace')                                                  !ファイル作成
@@ -680,10 +717,11 @@ module map_track
     particle = (/m_t0 ,m_th0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0/)
     read (40,*) temp_T,particle(3), particle(4), particle(5), particle(6), particle(7)
     m_z0 = particle(4)
+    pth  = (particle(5)**2.0 + particle(6)**2.0 + particle(7)**2.0)**0.5
     particle(3) = particle(3) + dr
     particle(4) = particle(4) + dz
     write (temp_name,'(f0.1)') temp_T
-    save_name = trim(read_file_name)//'_T='//trim(temp_name)//'_dz=0.0005.csv'
+    save_name = trim(read_file_name)//'_T='//trim(temp_name)//'.csv'
     print *, nint(temp_T),save_name
     call map_tracking(r_num , th_num , z_num)
   end do

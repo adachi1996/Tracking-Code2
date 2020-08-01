@@ -63,11 +63,6 @@ module map_track
 
 !=====================================================[サブルーチン①:磁場マップ読み込み]=====================================================
   subroutine coodinate(all_num , r_num , th_num , z_num)
-  !読み込んだデータを格納する配列のポインター宣言
-
-  count_r = 1     ; count_z = 1     ; count_th = 1     ; count = 1            !カウント用変数の初期化
-  temp_r  = 1.0d5 ; temp_z  = 1.0d5 ; temp_th  = 1.0d5                        !一時保管用変数の初期化
-
     double precision :: dat_x   , dat_y    , dat_z   , dat_Bx , dat_By , dat_Bz !読み込んだデータ格納用
     double precision :: dat_r   , dat_th   ,           dat_Br , dat_Bth         !座標変換したデータ格納用
     double precision :: temp_r  , temp_th  , temp_z                             !一時保管用

@@ -15,11 +15,12 @@ module map_track
     h        = m_th_h*(pi/180.0) !刻み幅の設定値[deg.]から[rad.]への変換
     pth      = (m_T**2.0 + 2.0*m_T*m_m0)**0.5 !初期運動量の計算
 
+    !初期入射条件のパターン選択
     select case (select_initial)
-    case(0)
-      particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz ,0.0d0 ,pth ,0.0d0 ,0.0d0 ,0.0d0 ,0.0d0/) !初期入射条件の計算
-    case(1)
-      particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz ,m_pr0 ,m_pth0 ,m_py0 ,0.0d0 ,0.0d0 ,0.0d0/) !初期入射条件の計算
+      case(0)
+        particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz ,0.0d0 ,pth ,0.0d0 ,0.0d0 ,0.0d0 ,0.0d0/)    !初期入射条件の計算(Pthのみ)
+      case(1)
+        particle = (/m_t0 ,m_th0 ,m_r0+dr ,m_z0+dz ,m_pr0 ,m_pth0 ,m_py0 ,0.0d0 ,0.0d0 ,0.0d0/) !初期入射条件の計算(Pth以外もあり)
     end select
 
     !ファイルの読み込み
@@ -60,92 +61,101 @@ module map_track
     close(18)
   end subroutine
 
-  !=====================================================[サブルーチン①:磁場マップ読み込み]=====================================================
+!=====================================================[サブルーチン①:磁場マップ読み込み]=====================================================
   subroutine coodinate(all_num , r_num , th_num , z_num)
-  double precision :: dat_x   , dat_y    , dat_z   , dat_Bx , dat_By , dat_Bz !読み込んだデータ格納用
-  double precision :: dat_r   , dat_th   ,           dat_Br , dat_Bth         !座標変換したデータ格納用
-  double precision :: temp_r  , temp_th  , temp_z                             !一時保管用
-  integer          :: all_num , r_num    , th_num  , z_num                    !各データ数
-  integer          :: count_r , count_th , count_z , i  ,count                !カウント用変数
-
   !読み込んだデータを格納する配列のポインター宣言
-  double precision, pointer, dimension(:,:) :: temp_B_data
-  double precision, pointer, dimension(:)   :: temp_r_data, temp_th_data, temp_z_data
-  allocate( temp_r_data(r_num) , temp_th_data(th_num) , temp_z_data(z_num) , temp_B_data(all_num,3))
 
   count_r = 1     ; count_z = 1     ; count_th = 1     ; count = 1            !カウント用変数の初期化
   temp_r  = 1.0d5 ; temp_z  = 1.0d5 ; temp_th  = 1.0d5                        !一時保管用変数の初期化
 
-  if (select_func == 3) then
-    !open(15,file='r_th_z_20190504_200250300_original.csv', status='replace')                                                  !ファイル作成
-    open(30,file='r_' //trim(file_name1)//trim(file_name2)//'.csv', status='replace')                                                  !ファイル作成
-    open(31,file='th_'//trim(file_name1)//trim(file_name2)//'.csv', status='replace')                                                  !ファイル作成
-    open(32,file='z_' //trim(file_name1)//trim(file_name2)//'.csv', status='replace')                                                  !ファイル作成
-    open(33,file='B_' //trim(file_name1)//trim(file_name2)//'.csv', status='replace')                                                  !ファイル作成
-    print *, 'make file!!'
-  end if
-  do i = 1 , all_num                                                          !全データを読み込むためのループ
-    read (18,*) dat_x , dat_y , dat_z , dat_Bx , dat_By , dat_Bz              !読み込み
-    dat_r   = 1.0d-4*(nint(1.0d2*(dat_x**2.0d0 + dat_y**2.0d0)**0.5))         !r[m]への座標変換
-    dat_z   = 1.0d-2*dat_z                                                    !z[m]への単位変換
-    dat_th  = 1.0d-4*(nint(1.0d4*(m_th0+ATAN(dat_y/dat_x)*180.0d0/pi)))         !角度の計算[deg.]
-    dat_Br  = 1.0d-4*( dat_Bx*COS(dat_th*pi/180.0d0) + dat_By*SIN(dat_th*pi/180.0d0))              ![gauss]から単位変換[T]
-    dat_Bth = 1.0d-4*(-dat_Bx*SIN(dat_th*pi/180.0d0) + dat_By*COS(dat_th*pi/180.0d0))              ![gauss]から単位変換[T]
-    dat_Bz  = 1.0d-4*dat_Bz                                                                         ![gauss]から単位変換[T]
+    double precision :: dat_x   , dat_y    , dat_z   , dat_Bx , dat_By , dat_Bz !読み込んだデータ格納用
+    double precision :: dat_r   , dat_th   ,           dat_Br , dat_Bth         !座標変換したデータ格納用
+    double precision :: temp_r  , temp_th  , temp_z                             !一時保管用
+    integer          :: all_num , r_num    , th_num  , z_num                    !各データ数
+    integer          :: count_r , count_th , count_z , i  ,count                !カウント用変数
 
-    if (count_r  <=  r_num .and. temp_r  /=  dat_r ) then                     !rのデータ数だけ格納
-      temp_r_data(count_r)   = dat_r     ;     count_r  = count_r  + 1     ;     temp_r = dat_r
-      write(30,*) dat_r
-    end if
+    !読み込んだデータを格納する配列のポインター宣言
+    double precision, pointer, dimension(:,:) :: temp_B_data
+    double precision, pointer, dimension(:)   :: temp_r_data, temp_th_data, temp_z_data
+    allocate( temp_r_data(r_num) , temp_th_data(th_num) , temp_z_data(z_num) , temp_B_data(all_num,3))
 
-    if (count_z  <=  z_num .and. temp_z  /=  dat_z ) then                     !zのデータ数だけ格納
-      temp_z_data(count_z)   = dat_z     ;     count_z  = count_z  + 1     ;     temp_z = dat_z
-      write(32,*) dat_z
-    end if
+    count_r = 1     ; count_z = 1     ; count_th = 1     ; count = 1            !カウント用変数の初期化
+    temp_r  = 1.0d5 ; temp_z  = 1.0d5 ; temp_th  = 1.0d5                        !一時保管用変数の初期化
 
-    if (count_th <= th_num .and. temp_th /= dat_th ) then                     !thのデータ数だけ格納
-      temp_th_data(count_th) = dat_th    ;     count_th = count_th + 1     ;     temp_th = dat_th
-      write(31,*) dat_th
-    end if
-
-    if (i == count*all_num/10) then
-      print *, 'Now Loading ...',count*10,'%'
-      count = count + 1
-    end if
-
-    temp_B_data(i,1) = dat_Br  !Br 格納
-    temp_B_data(i,2) = dat_Bth !Bth格納
-    temp_B_data(i,3) = dat_Bz  !Bz 格納
+    !今は使われていない磁場マップファイル生成
     if (select_func == 3) then
-      !write(15,*) dat_r ,',', dat_th ,',', dat_z ,',', dat_Br ,',', dat_Bth ,',', dat_Bz
-      write(33,*) dat_Br ,',', dat_Bth ,',', dat_Bz
+      !open(15,file='r_th_z_20190504_200250300_original.csv', status='replace')                                                  !ファイル作成
+      open(30,file='r_' //trim(file_name1)//trim(file_name2)//'.csv', status='replace')                                                  !ファイル作成
+      open(31,file='th_'//trim(file_name1)//trim(file_name2)//'.csv', status='replace')                                                  !ファイル作成
+      open(32,file='z_' //trim(file_name1)//trim(file_name2)//'.csv', status='replace')                                                  !ファイル作成
+      open(33,file='B_' //trim(file_name1)//trim(file_name2)//'.csv', status='replace')                                                  !ファイル作成
+      print *, 'make file!!'
     end if
-  end do
 
-  if (select_func == 3) then
-    !close(15)
-    close(30)
-    close(31)
-    close(32)
-    close(33)
-  end if
+    !読み込んで配列に格納するループ
+    do i = 1 , all_num                                                          !全データを読み込むためのループ
+      read (18,*) dat_x , dat_y , dat_z , dat_Bx , dat_By , dat_Bz              !読み込み
+      dat_r   = 1.0d-4*(nint(1.0d2*(dat_x**2.0d0 + dat_y**2.0d0)**0.5))         !r[m]への座標変換
+      dat_z   = 1.0d-2*dat_z                                                    !z[m]への単位変換
+      dat_th  = 1.0d-4*(nint(1.0d4*(m_th0+ATAN(dat_y/dat_x)*180.0d0/pi)))         !角度の計算[deg.]
+      dat_Br  = 1.0d-4*( dat_Bx*COS(dat_th*pi/180.0d0) + dat_By*SIN(dat_th*pi/180.0d0))              ![gauss]から単位変換[T]
+      dat_Bth = 1.0d-4*(-dat_Bx*SIN(dat_th*pi/180.0d0) + dat_By*COS(dat_th*pi/180.0d0))              ![gauss]から単位変換[T]
+      dat_Bz  = 1.0d-4*dat_Bz                                                                         ![gauss]から単位変換[T]
 
-  r_data  => temp_r_data            !r のポインタ設定
-  th_data => temp_th_data           !thのポインタ設定
-  z_data  => temp_z_data            !z のポインタ設定
-  B_data  => temp_B_data            !磁場のポインタ設定
+      if (count_r  <=  r_num .and. temp_r  /=  dat_r ) then                     !rのデータ数だけ格納
+        temp_r_data(count_r)   = dat_r     ;     count_r  = count_r  + 1     ;     temp_r = dat_r
+        !write(30,*) dat_r !select_func == 3 を使くことになったらコメントを外す
+      end if
 
-  r_min  = r_data(1)                !rの最小値
-  th_min = th_data(1)               !thの最小値
-  z_min  = z_data(1)                !zの最小値
-  drt_r  = r_data(2)  -  r_data(1)  !Δr
-  drt_th = th_data(2) - th_data(1)  !Δth
-  drt_z  = z_data(2)  -  z_data(1)  !Δz
+      if (count_z  <=  z_num .and. temp_z  /=  dat_z ) then                     !zのデータ数だけ格納
+        temp_z_data(count_z)   = dat_z     ;     count_z  = count_z  + 1     ;     temp_z = dat_z
+        !write(32,*) dat_z !select_func == 3 を使くことになったらコメントを外す
+      end if
+
+      if (count_th <= th_num .and. temp_th /= dat_th ) then                     !thのデータ数だけ格納
+        temp_th_data(count_th) = dat_th    ;     count_th = count_th + 1     ;     temp_th = dat_th
+        !write(31,*) dat_th !select_func == 3 を使くことになったらコメントを外す
+      end if
+
+      !読み込み状況の表示
+      if (i == count*all_num/10) then
+        print *, 'Now Loading ...',count*10,'%'
+        count = count + 1
+      end if
+
+      temp_B_data(i,1) = dat_Br  !Br 格納
+      temp_B_data(i,2) = dat_Bth !Bth格納
+      temp_B_data(i,3) = dat_Bz  !Bz 格納
+
+      !if (select_func == 3) then !select_func == 3 を使くことになったらコメントを外す
+      !  !write(15,*) dat_r ,',', dat_th ,',', dat_z ,',', dat_Br ,',', dat_Bth ,',', dat_Bz
+      !  write(33,*) dat_Br ,',', dat_Bth ,',', dat_Bz
+      !end if
+    end do
+
+    if (select_func == 3) then
+      !close(15)
+      close(30)
+      close(31)
+      close(32)
+      close(33)
+    end if
+
+    r_data  => temp_r_data            !r のポインタ設定
+    th_data => temp_th_data           !thのポインタ設定
+    z_data  => temp_z_data            !z のポインタ設定
+    B_data  => temp_B_data            !磁場のポインタ設定
+
+    r_min  = r_data(1)                !rの最小値
+    th_min = th_data(1)               !thの最小値
+    z_min  = z_data(1)                !zの最小値
+    drt_r  = r_data(2)  -  r_data(1)  !Δr
+    drt_th = th_data(2) - th_data(1)  !Δth
+    drt_z  = z_data(2)  -  z_data(1)  !Δz
   end subroutine
 
-  !=====================================================[サブルーチン②:ルンゲクッタ呼び出し＆保存]=====================================================
+!=====================================================[サブルーチン②:ルンゲクッタ呼び出し＆保存]=====================================================
   subroutine map_tracking(r_num , th_num , z_num)
-    double precision :: temp_dth , temp_th , temp_deg , d_pth , d_T
     double precision :: deruta_P , deruta_Pr, deruta_Pth , RF_T, RF_P, RF_th!加速関係
     integer          :: r_num , th_num , z_num
     integer          :: count_cell , count_dth
@@ -154,39 +164,37 @@ module map_track
     write (17,*) 't[s]',',','th[deg]',',','r[m]',',','z[m]',',',' &
                  Pr[MeV/c]',',','Pth[MeV/c]',',','Pz[MeV/c]',',','Br[T]',',','Bth[T]',',','Bz[T]'   !保存データの名前書き込み
 
-    RF_T = m_T
-
-    temp_dth  = nint(m_dth/m_th_h)                                                                      !保存する角度の整数化
-    temp_th   = 0                                                                                   !初期化
+    !各変数の初期化
+    RF_T = m_T                                           !加速を考慮したときに使用する運動エネルギーの仮入れ物みたいなもの
     count_cell= nint(sym_th/m_th_h)
     count_dth = nint(m_dth/m_th_h)
     count_th  = 0
 
-    d_T   = (exp(3.0*0.001) - 1.0)
-    d_pth = (particle(5)**2.0 + particle(6)**2.0 + particle(7)**2.0)**0.5!(m_T**2.0 + 2.0*m_T*m_m0)**0.5
+    !入射条件の表示
+    print *, "Initial value"
+    print *, "  th0 =",particle(2),"[deg.]"
+    print *, "  r0  =",particle(3),"[m]"
+    print *, "  z0  =",particle(4),"[m]"
 
-    do while (particle(2) < max_deg)                                                                !任意の周回数回るまで計算するループ
-      temp_deg = nint(particle(2)/m_th_h)                                                             !角度の整数化
-      !print *, particle(2),',',particle(3),',',particle(4)
-      !if (nint(mod(temp_deg , temp_dth)) == 0) then                                                 !任意の角度の整数倍の時にtrue
+    !任意の周回数回るまで計算するループ
+    do while (particle(2) <= max_deg)                                                                !任意の周回数回るまで計算するループ
       if (mod(count_th,count_dth) == 0.0) then!  5.625/m_th_h) then
         write (17,'(e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8)')&
                      particle(1),',',particle(2),',',particle(3),',', &
                      particle(4),',',particle(5),',',particle(6),',', &
                      particle(7),',',particle(8),',',particle(9),',',particle(10)                   !データを逐次保存
-        !write (*,*) particle(2),particle(3),particle(4)
-        !if (temp_th /= int(particle(2)/360)) then
+
+        !1周したことを知らせるためのif文
         if (mod(count_th,nint(360/m_th_h)) == 0) then
-          !d_pth = (particle(5)**2.0 + particle(6)**2.0 + particle(7)**2.0)**0.5
-          !particle(6) = particle(6) + 0.0007148428!d_pth*d_T
-          print *, nint(particle(2)/360),'Turns'!,'T=', d_pth,  d_pth*d_T                                                        !1周ごとに表示
-          temp_th = int(particle(2)/360)                                                           !更新
+          print *, nint(particle(2)/360),'Turns'
         end if
       end if
-      !theta = mod(temp_deg,sym_th/m_th_h)*m_th_h                                                          !1Cell内での角度の更新
+
+      !1Cell内での角度の更新
       theta = (mod(count_th,count_cell))*m_th_h
 
       !加速関連
+      !加速なしの場合でも一応if文の中には入る(なんとなくそうしている)
       if (mod(count_th,nint(360/m_th_h))*m_th_h == th_RF) then
         print '(a,e16.8,e16.8,e16.8,e16.8)','P(n)   -> ',particle(5),particle(6),particle(7),&
                                                         (particle(5)**2.0 + particle(6)**2.0 + particle(7)**2.0)**0.5
@@ -209,16 +217,24 @@ module map_track
         print *,'------------------------------------------------------'
       end if
 
+      !RKを呼ぶためのサブルーチンを呼ぶ
       call map_cal(r_num , th_num , z_num)                                                          !RKを呼ぶための外部サブルーチンを呼ぶ
-      particle(2) = particle(2) + m_th_h                                                              !角度の更新
       count_th = count_th + 1
+      particle(2) = count_th*m_th_h                                                              !角度の更新
 
+      !終了条件を満たしたら入るif文
       if (abs(m_z0 - particle(4)) > cut_z .or. check == 1) then                              !zの振幅が設定した範囲の外に出たら計算を終了する
         check = 0
         exit
       end if
     end do
     close(17)                                                                                       !ファイルを閉じる
+
+    !終了時の表示
+    print *, "Last value"
+    print *, "  th1 =",m_th_h*(count_th-1),"[deg.]" !「-1」しているのはDo whileの最後で角度が更新されているため
+    print *, "  r1  =",particle(3),"[m]"
+    print *, "  z1  =",particle(4),"[m]"
   end subroutine
 
   !=====================================================[サブルーチン②:ルンゲクッタ計算読み出しと値の更新]=====================================================
@@ -234,6 +250,7 @@ module map_track
       r_beta =    P/(m_m0**2.0+P**2.0)**0.5                                                          !非速度
       gamma  = 1.0/(1.0-r_beta**2.0)**0.5                                                           !ローレンツ因子
 
+      !運動量が保存していないような結果となったら終了するためのもの
       if (P > Pth*1.1 .or. P < Pth*0.9) then
         check = 1
       end if
@@ -328,7 +345,8 @@ module map_track
       klf(6) = h*(q*(1.0d-6*c*ks(2)/ks(5))*(ks(4)*particle( 9) - ks(5)*particle( 8)))        !pz
     end if
   end function
-    !=====================================================[サブルーチン⑤:複数エネルギーの閉軌道導出部(水平用)]=====================================================
+
+!=====================================================[サブルーチン⑤:複数エネルギーの閉軌道導出部(水平用)]=====================================================
   subroutine closed_orbit_H(r_num , th_num , z_num)
     double precision :: min_r , ini_r
     integer :: r_num , th_num , z_num , int_T ,i
@@ -371,7 +389,7 @@ module map_track
     end do
   end subroutine
 
-  !=====================================================[サブルーチン⑥:閉軌道の計算とチューン軌道計算]=====================================================
+!=====================================================[サブルーチン⑥:閉軌道の計算とチューン軌道計算]=====================================================
   subroutine map_tracking2(r_num , th_num , z_num , count)
     double precision :: temp_dth , temp_th , temp_deg
     double precision :: r , z
@@ -410,7 +428,10 @@ module map_track
       close(17)
     end if                                                                                 !ファイルを閉じる
   end subroutine
-  !=====================================================[サブルーチン⑤:閉軌道導出(垂直用)]=====================================================
+
+!=====================================================[サブルーチン⑤:閉軌道導出(垂直用)]=====================================================
+!しらみつぶし方式
+!使っていないしこれからも使われないと思われる
   subroutine closed_orbit_V(r_num , th_num , z_num)
     double precision :: temp_r1 , temp_r2 , ini_r                                              !ｒの情報の入れ物
     double precision :: temp_z1 , temp_z2 , ini_z                                              !ｚの情報の入れ物
@@ -470,6 +491,8 @@ module map_track
   end subroutine
 
 !=====================================================[サブルーチン⑤:角度も考慮した閉軌道導出(垂直用)]=====================================================
+!しらみつぶし方式
+!使っていないしこれからも使われないと思われる
   subroutine closed_orbit_V2(r_num , th_num , z_num)
     double precision :: temp_r1  , temp_r2  , ini_r                                              !ｒの情報の入れ物
     double precision :: temp_z1  , temp_z2  , ini_z                                              !ｚの情報の入れ物
@@ -549,7 +572,9 @@ module map_track
     end do !zのループ
   end subroutine
 
-  !=====================================================[サブルーチン⑤:角度も考慮した閉軌道導出(垂直用)]=====================================================
+!=====================================================[サブルーチン⑤:角度も考慮した閉軌道導出(垂直用)]=====================================================
+!任意の周回数計算してr-Pr, y-Pyをもとめ、その中心を次の入射条件とすることで閉軌道を求める
+!しらみつぶしにくらべてかなり速い
   subroutine closed_orbit_V3(r_num , th_num , z_num)
     double precision :: temp_r   , temp_r2    !rの情報の入れ物
     double precision :: temp_z   , temp_z2    !zの情報の入れ物
@@ -557,157 +582,177 @@ module map_track
     double precision :: temp_pz  , temp_pz2   !pzの情報の入れ物
     double precision :: temp_pth , temp_pth2  !pthの情報の入れ物
     double precision :: temp_deg                          !角度用の入れ物
-    double precision :: temp_box                          !同じ結果を除くためのもの
-    double precision :: max_r , max_z ,T_keV                         !同じ結果を除くためのもの
+    double precision :: max_r , max_z ,T_keV              !同じ結果を除くためのもの
     integer          :: r_num , th_num , z_num            !各データ数用入れ子
-    integer          :: i,j,k,set_num                        !ループ用整数変数
-    integer          :: save_count,val_T ,i_r                          !保存名用整数変数
-    integer          :: CO_z1,CO_z2,CO_z3
+    integer          :: i,j,k                     !ループ用整数変数
+    integer          :: step_T                     !ループ用整数変数
+    integer          :: save_count,val_T ,i_r             !保存名用整数変数
+    integer          :: CO_z1,CO_z2,CO_z3                 !同じ結果を除くためのもの
     integer          :: count_dth,count_th                !角度計算用整数変数
     character(100)   :: num_name                          !保存名用
-    character(100)   :: add_name, temp_T                          !保存名用
+    character(100)   :: add_name, temp_T                  !保存名用
     double precision, pointer, dimension(:) :: temp_sum   !平均値を求めるための配列
-    double precision, pointer, dimension(:)   :: closed_z
-    allocate( closed_z(20) )
-    allocate( temp_sum(6) )                               !カウント数とr～pzまでの変数用
+    double precision, pointer, dimension(:) :: closed_z   !入射条件(y)を記録する配列
 
-    set_num = 10
-    temp_box   = 1.0d0
-    save_count = 1
+    !入射条件の重複を防ぐための機能で使用する配列。このなかに同じエネルギーでの入射位置(y)を記録していく。
+    !最大で「40」しかデータを保存できないため、それ以上も止まるような場合は強制終了してしまうので注意
+    allocate( closed_z(40) )
+
+    !カウント数とr～pzまでの変数用。これでr-Pr, y-Pyの平均値を計算する
+    allocate( temp_sum(6) )
+
+    !各種設定
+    save_count = 0     !閉軌道が求まった回数。保存するファイル名に追加されている
     count_dth  = nint(360.0/m_th_h) !保存する角度(360度で固定)
-    do val_T = 0 , 10
-      T_keV = dble(val_T)*0.1+34.0
+    step_T     = nint((set_T1 - set_T0)/set_dT)
+
+    !各種設定値の表示
+    print "(a, f4.1)", "Start energy =",set_T0
+    print "(a, f4.1)", "Last energy  =",step_T*set_dT
+    print "(a, f4.1)", "Step size    =",set_dT
+    print "(a, I3)"  , "Step number  =",step_T
+    print *, ""
+
+    !閉軌道導出用のループ。設定したエネルギー範囲を計算したら抜ける。
+    do val_T = 0 , step_T
+      T_keV = dble(val_T)*set_dT + set_T0
       !print *, 'T =',nint(T_keV) ,' [keV]'
+
+      !各種値の初期化
       pth = ((0.001*T_keV)**2.0 + 2.0*(0.001*T_keV)*m_m0)**0.5
       CO_z1 = 0
       CO_z2 = 0
-      do CO_z3 = 1 , 20
+      do CO_z3 = 1 , 40    !配列 closed_z 内の全データの初期化
         closed_z(CO_z3) = 0.0
       end do
-    do i = 130 , 150      !zのループ
-    do i_r = -0 , 0      !rのループ
-      max_r = 0.0
-      max_z = 0.0
-      temp_pr2  = 0.0d0 !prの初期化
-      temp_pz2  = 0.0d0 !pzの初期化
-      temp_pth2 = pth   !pthの初期化
-      temp_r2   = m_r0 + dble(i_r)*0.005  !rの初期化
-      temp_z2   = m_z0 + dble(i  )*0.001   !zの初期化
-      !if (mod(i,24) == 0) then
-        !print *, '   x,y = ',temp_r2,temp_z2
-      !end if
-      do k = 0 , set_num            !入射条件の更新回数
-        if (k >= set_num) then
-          write (num_name, '("20200618_accelerator_1_", i3.3, "_")') save_count
-          write (add_name, '("T=", i3.3, ".csv")') nint(T_keV)
-          save_count = save_count + 1
-          open(20,file=trim(num_name)//trim(add_name), status='replace')                                                  !ファイル作成
-          write (20,*) 't[s]',',','th[deg]',',','r[m]',',','z[m]',',',' &
-                        Pr[MeV/c]',',','Pth[MeV/c]',',','Pz[MeV/c]',',','Br[T]',',','Bth[T]',',','Bz[T]'   !保存データの名前書き込み
-        end if
-        temp_sum(1) = 0.0      !22.5度ごとのデータの総数
-        temp_sum(2) = 0.0      !22.5度ごとのrの総和
-        temp_sum(3) = 0.0      !22.5度ごとのzの総和
-        temp_sum(4) = 0.0      !22.5度ごとのprの総和
-        temp_sum(6) = 0.0      !22.5度ごとのpzの総和
-        temp_sum(5) = 0.0      !22.5度ごとのpthの総和
-        temp_r   = temp_r2     !初期値rの更新
-        temp_z   = temp_z2     !初期値zの更新
-        temp_pr  = temp_pr2    !初期値prの更新
-        temp_pz  = temp_pz2    !初期値pzの更新
-        temp_pth = temp_pth2   !初期値pthの更新
-        count_th = 0           !カウント数の初期化
-        !print *,k,max_r,max_z
-        if (k <  set_num) particle = (/m_t0 ,m_th0, temp_r+max_r, temp_z+max_z, temp_pr, temp_pth, temp_pz, 0.0d0, 0.0d0, 0.0d0/) !粒子の初期情報を更新
-        if (k == set_num) particle = (/m_t0 ,m_th0, temp_r      , temp_z      , temp_pr, temp_pth, temp_pz, 0.0d0, 0.0d0, 0.0d0/) !粒子の初期情報を更新
-        max_r = 0.0
-        max_z = 0.0
-        do while (particle(2) <= (360.0d0*50.0))                                                    !1周回るまで計算するループ
-          temp_deg = nint(particle(2)/m_th_h)                                                       !角度の整数化
-          theta    = mod(temp_deg,sym_th/m_th_h)*m_th_h                                             !1Cell内での角度の更新
-          if (mod(count_th,count_dth) == 0) then    !22.5度の倍数の時に入る
-            temp_sum(1) = temp_sum(1) + 1           !データ数の計算(総和)
-            temp_sum(2) = temp_sum(2) + particle(3) !rの総計
-            temp_sum(3) = temp_sum(3) + particle(4) !zの総計
-            temp_sum(4) = temp_sum(4) + particle(5) !Prの総計
-            temp_sum(5) = temp_sum(5) + particle(6) !Pthの総計
-            temp_sum(6) = temp_sum(6) + particle(7) !Pzの総計
-            if (k == set_num) then
-              write (20,'(e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8)')&
-                           particle(1),',',particle(2),',',particle(3),',', &
-                           particle(4),',',particle(5),',',particle(6),',', &
-                           particle(7),',',particle(8),',',particle(9),',',particle(10)                   !データを逐次保存
-            end if
-            if (max_r < particle(3)) max_r = particle(3)
-            if (max_z < particle(4)) max_z = particle(4)
-          end if
-          call map_cal(r_num , th_num , z_num)                                                      !RKを呼ぶための外部サブルーチンを呼ぶ
-          particle(2) = particle(2) + m_th_h                                                        !角度の更新
-          if (abs(temp_z - particle(4)) > cut_z .or. check == 1) then                               !zの振幅が設定した範囲の外に出たら計算を終了する
-            check = 1 !kのループからも抜けるために値を更新
-            exit      !軌道計算のループから抜ける
-          end if
-          count_th = count_th + 1 !角度用カウント数の更新
-        end do
-        if (check == 1) then      !任意のターン数(多分30周)回らなかった場合に入る
-          check = 0               !計算終了条件用変数を初期状態に戻す
-          if (k >= set_num) close(20)               !開いていたファイルを閉める
-          exit                    !次のzに移るためにkのループから抜ける
-        end if
-        temp_r2   = temp_sum(2)/temp_sum(1) !rの更新(確定)
-        temp_z2   = temp_sum(3)/temp_sum(1) !zの更新(確定)
-        temp_pr2  = temp_sum(4)/temp_sum(1) !prの更新(確定)
-        temp_pz2  = temp_sum(6)/temp_sum(1) !pzの更新(確定)
-        temp_pth2 = (pth**2.0 - temp_pr2**2.0 - temp_pz2**2.0)**0.5
-        !temp_pth2 = temp_sum(5)/temp_sum(1) !pthの更新(確定)
-        max_r = (max_r - temp_r2)*0.1
-        max_z = (max_z - temp_z2)*0.1
-        if (k >= set_num) close(20)                                                                                !ファイルを閉じる
 
+      !任意の範囲内を計算
+      !それぞれの数値は適当に決めた値
+      do i = 0 , 120      !zのループ
+        do i_r = -2 , 2   !rのループ
+          max_r = 0.0
+          max_z = 0.0
+          temp_pr2  = 0.0d0 !prの初期化
+          temp_pz2  = 0.0d0 !pzの初期化
+          temp_pth2 = pth   !pthの初期化
+          temp_r2   = m_r0 + dble(i_r)*0.005  !rの初期化
+          temp_z2   = m_z0 + dble(i  )*0.002   !zの初期化
+          !if (mod(i,24) == 0) then
+            !print *, '   x,y = ',temp_r2,temp_z2
+          !end if
 
-        if (CO_z1 >= 1) then
-          do CO_z3 = 1, CO_z1
-            !print *, '------->',CO_z3,closed_z(CO_z3)
-            if (int(closed_z(CO_z3)*1d5) == int(temp_z2*1d5)) then
-              CO_z2 = 1
+          !平均値を設定回数計算
+          do k = 0 , set_num            !入射条件の更新回数
+            if (k >= set_num) then
+              save_count = save_count + 1
+              write (num_name, '("_", i3.3, "_")') save_count
+              write (add_name, '("T=", i3.3, ".csv")') nint(T_keV)
+              open(20,file=trim(set_name)//trim(num_name)//trim(add_name), status='replace')                                                  !ファイル作成
+              write (20,*) 't[s]',',','th[deg]',',','r[m]',',','z[m]',',',' &
+                            Pr[MeV/c]',',','Pth[MeV/c]',',','Pz[MeV/c]',',','Br[T]',',','Bth[T]',',','Bz[T]'   !保存データの名前書き込み
             end if
-          end do
-        else if (CO_z1 == 0 .and. k == set_num) then
-          CO_z1 = CO_z1 + 1
-          closed_z(CO_z1) = temp_z2
-        end if
-        if (CO_z2 == 1) then
-          !print *, 'k=',k
-          exit
-        end if
-        if (k == set_num) then
-          CO_z1 = CO_z1 + 1
-          closed_z(CO_z1) = temp_z2
-          !write(*,*) '------------------------------------------------------------'
-          !write(*,*) temp_r2  , temp_z2
-          !write(*,*) temp_pr2 , temp_pth2 , temp_pz
-          !write(*,*) 'max_r_z=',max_r,max_z
-          !write(*,*) 'diff=',((particle(3)-temp_r)**2.0 + (particle(4)-temp_z)**2.0)**0.5
-          !write(*,*) '------------------------------------------------------------'
-          write (temp_T,'(f0.1)') T_keV
-          write(*,'(a,e16.8,e16.8,e16.8,e16.8,e16.8)') trim(temp_T),particle(3),particle(4),particle(5),particle(6),particle(7)
-        end if
-        CO_z2 = 0
-      end do !kのループ
-    end do !iのループ
-    end do
+            temp_sum(1) = 0.0      !22.5度ごとのデータの総数
+            temp_sum(2) = 0.0      !22.5度ごとのrの総和
+            temp_sum(3) = 0.0      !22.5度ごとのzの総和
+            temp_sum(4) = 0.0      !22.5度ごとのprの総和
+            temp_sum(6) = 0.0      !22.5度ごとのpzの総和
+            temp_sum(5) = 0.0      !22.5度ごとのpthの総和
+            temp_r   = temp_r2     !初期値rの更新
+            temp_z   = temp_z2     !初期値zの更新
+            temp_pr  = temp_pr2    !初期値prの更新
+            temp_pz  = temp_pz2    !初期値pzの更新
+            temp_pth = temp_pth2   !初期値pthの更新
+            count_th = 0           !カウント数の初期化
+            !print *,k,max_r,max_z
+            if (k <  set_num) particle = (/m_t0 ,m_th0, temp_r+max_r, temp_z+max_z, temp_pr, temp_pth, temp_pz, 0.0d0, 0.0d0, 0.0d0/) !粒子の初期情報を更新
+            if (k == set_num) particle = (/m_t0 ,m_th0, temp_r      , temp_z      , temp_pr, temp_pth, temp_pz, 0.0d0, 0.0d0, 0.0d0/) !粒子の初期情報を更新
+            max_r = 0.0
+            max_z = 0.0
+
+            !設定周回数だけ軌道計算
+            do while (particle(2) <= (360.0d0*set_rev))      !1周回るまで計算するループ
+              temp_deg = nint(particle(2)/m_th_h)            !角度の整数化
+              theta    = mod(temp_deg,sym_th/m_th_h)*m_th_h  !1Cell内での角度の更新
+              if (mod(count_th,count_dth) == 0) then         !22.5度の倍数の時に入る
+                temp_sum(1) = temp_sum(1) + 1                !データ数の計算(総和)
+                temp_sum(2) = temp_sum(2) + particle(3)      !rの総計
+                temp_sum(3) = temp_sum(3) + particle(4)      !zの総計
+                temp_sum(4) = temp_sum(4) + particle(5)      !Prの総計
+                temp_sum(5) = temp_sum(5) + particle(6)      !Pthの総計
+                temp_sum(6) = temp_sum(6) + particle(7)      !Pzの総計
+                if (k == set_num) then
+                  write (20,'(e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8,a,e16.8)')&
+                               particle(1),',',particle(2),',',particle(3),',', &
+                               particle(4),',',particle(5),',',particle(6),',', &
+                               particle(7),',',particle(8),',',particle(9),',',particle(10)                   !データを逐次保存
+                end if
+                if (max_r < particle(3)) max_r = particle(3)
+                if (max_z < particle(4)) max_z = particle(4)
+              end if
+
+              !RKを呼ぶための外部サブルーチンを呼ぶ
+              call map_cal(r_num , th_num , z_num)
+              count_th = count_th + 1             !角度用カウント数の更新
+              particle(2) = count_th*m_th_h  !角度の更新
+
+              !エラー処理
+              if (abs(temp_z - particle(4)) > cut_z .or. check == 1) then                               !zの振幅が設定した範囲の外に出たら計算を終了する
+                check = 1 !kのループからも抜けるために値を更新
+                exit      !軌道計算のループから抜ける
+              end if
+            end do
+
+            !エラー処理
+            if (check == 1) then      !任意のターン数回らなかった場合に入る
+              check = 0               !計算終了条件用変数を初期状態に戻す
+              if (k >= set_num) close(20)               !開いていたファイルを閉める
+              exit                    !次のzに移るためにkのループから抜ける
+            end if
+            temp_r2   = temp_sum(2)/temp_sum(1) !rの更新(確定)
+            temp_z2   = temp_sum(3)/temp_sum(1) !zの更新(確定)
+            temp_pr2  = temp_sum(4)/temp_sum(1) !prの更新(確定)
+            temp_pz2  = temp_sum(6)/temp_sum(1) !pzの更新(確定)
+            temp_pth2 = (pth**2.0 - temp_pr2**2.0 - temp_pz2**2.0)**0.5
+            max_r = (max_r - temp_r2)*0.1
+            max_z = (max_z - temp_z2)*0.1
+            if (k >= set_num) close(20)  !ファイルを閉じる
+
+            !同一エネルギーでの閉軌道計算結果の重複を防ぐためのもの
+            if (CO_z1 >= 1) then                                       !すでに1個以上閉軌道が求まっている場合に入る
+              do CO_z3 = 1, CO_z1                                      !これまでに保存していた閉軌道の計算結果(y)と比較するためのループ
+                if (int(closed_z(CO_z3)*1d5) == int(temp_z2*1d5)) then !少数点以下5桁まで等しい結果の場合はこの中に入る
+                  CO_z2 = 1                                            !保存しないデータとして記録するため値を更新する
+                end if
+              end do
+            else if (CO_z1 == 0 .and. k == set_num) then !初めて閉軌道が求まった場合に入る
+              CO_z1 = CO_z1 + 1         !データ数の更新
+              closed_z(CO_z1) = temp_z2 !結果の記録
+              print *, CO_z1,"aa"
+            end if
+            if (CO_z2 == 1) then !保存しない値の場合にはここに入ってループから抜ける→次のyへ
+              exit
+            end if
+            if (k == set_num) then !これまでに保存していた結果と違う閉軌道の条件が求まった時に入る
+              print *, CO_z1,"aa"
+              CO_z1 = CO_z1 + 1         !データ数の更新
+              closed_z(CO_z1) = temp_z2 !結果の記録
+              write (temp_T,'(f0.1)') T_keV
+              write(*,'(a,e16.8,e16.8,e16.8,e16.8,e16.8)') trim(temp_T),particle(3),particle(4),particle(5),particle(6),particle(7)
+            end if
+            CO_z2 = 0
+          end do !kのループ
+        end do !iのループ
+      end do
     end do
   end subroutine
 
-  !=====================================================[サブルーチン⑤:角度も考慮した閉軌道導出(垂直用)]=====================================================
+!=====================================================[サブルーチン⑤:角度も考慮した閉軌道導出(垂直用)]=====================================================
   subroutine closed_orbit_V4(r_num , th_num , z_num)
-  character(100)   :: read_file_name, name1, name2
+  character(100)   :: read_file_name, temp_name
   integer          :: r_num   , th_num  , z_num     !各データ数用入れ子
   integer          :: i_num   , d_num               !各データ数用入れ子
-  integer          :: dr_num  , dy_num              !入射位置のずれ
   double precision :: temp_r  , temp_z  ,temp_T     !rの情報の入れ物
   double precision :: temp_Pr , temp_Pz , temp_Pth  !zの情報の入れ物
-  double precision :: p3,p4,p5,p6,p7  !各成分保存用
 
   open(40,file=trim(path_name2)//trim(file_name3)//'.txt', status='old')           !ファイルを開く
   read (40,*) read_file_name
@@ -715,22 +760,15 @@ module map_track
   read (40,*) d_num
   do i_num = 1,d_num
     particle = (/m_t0 ,m_th0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0, 0.0d0/)
-    read (40,*) temp_T,p3, p4, p5, p6, p7
-    do dr_num = 1, 1
-      do dy_num = 0, 0
-        particle = (/m_t0 ,m_th0, p3, p4, p5, p6, p7, 0.0d0, 0.0d0, 0.0d0/)
-        m_z0 = p4
-        m_T  = temp_T*1.0d-3
-        pth  = (p5**2.0 + p6**2.0 + p7**2.0)**0.5
-        particle(3) = particle(3) + (dr_num * 4.0d-3) !r0
-        particle(4) = particle(4) + (dy_num * 15.0d-3)!z0
-        write (name1,'(f0.1)') temp_T
-        write (name2,'(f0.3)') (dr_num * 4.0d-3)
-        save_name = 'T='//trim(name1)//'_dr='//trim(name2)//'.csv'
-        print *, nint(temp_T),save_name
-        call map_tracking(r_num , th_num , z_num)
-      end do
-    end do
+    read (40,*) temp_T,particle(3), particle(4), particle(5), particle(6), particle(7)
+    m_z0 = particle(4)
+    pth  = (particle(5)**2.0 + particle(6)**2.0 + particle(7)**2.0)**0.5
+    particle(3) = particle(3) + dr
+    particle(4) = particle(4) + dz
+    write (temp_name,'(f0.1)') temp_T
+    save_name = trim(read_file_name)//'_T='//trim(temp_name)//'.csv'
+    print *, nint(temp_T),save_name
+    call map_tracking(r_num , th_num , z_num)
   end do
   close(40)
   end subroutine
